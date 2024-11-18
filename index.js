@@ -17,12 +17,29 @@ io.on("connection", (socket) => {
   socket.on("new-user", (username) => {
     activeUsers[socket.id] = username;
     io.emit("user-joined", `${username} has joined the chat`);
+    io.emit("update-users", Object.values(activeUsers));
+  });
+
+  // Handle user typing
+  socket.on("typing", () => {
+    socket.broadcast.emit("user-typing", activeUsers[socket.id]);
+  });
+
+  socket.on("stop-typing", () => {
+    socket.broadcast.emit("user-stopped-typing", activeUsers[socket.id]);
   });
 
   // Handle user messages
   socket.on("user-message", (message) => {
     const username = activeUsers[socket.id] || "Anonymous";
-    io.emit("message", { username, message });
+    const timestamp = new Date().toLocaleTimeString();
+    io.emit("message", { username, message, timestamp });
+  });
+
+  // Private message functionality
+  socket.on("private-message", (data) => {
+    const targetSocketId = data.targetSocketId;
+    io.to(targetSocketId).emit("private-message", { username: activeUsers[socket.id], message: data.message });
   });
 
   // Handle user disconnecting
@@ -31,6 +48,7 @@ io.on("connection", (socket) => {
     if (username) {
       io.emit("user-left", `${username} has left the chat`);
       delete activeUsers[socket.id];
+      io.emit("update-users", Object.values(activeUsers));
     }
   });
 });

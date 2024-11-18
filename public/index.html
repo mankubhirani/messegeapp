@@ -36,6 +36,15 @@
         color: #6c757d;
         font-style: italic;
       }
+      .typing-indicator {
+        font-style: italic;
+        color: #888;
+      }
+      .user-list {
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 20px;
+      }
     </style>
   </head>
   <body>
@@ -43,6 +52,10 @@
       <h1 class="text-center mb-4">Chat App with Usernames</h1>
 
       <div id="messages" class="mb-3"></div>
+
+      <div id="typingMessage" class="typing-indicator"></div>
+
+      <div id="userList" class="user-list mb-3"></div>
 
       <div class="input-group">
         <input
@@ -53,6 +66,18 @@
           aria-label="Message input"
         />
         <button id="sendBtn" class="btn btn-primary">Send</button>
+      </div>
+
+      <!-- Private Message Input -->
+      <div class="input-group mt-3">
+        <input
+          type="text"
+          id="privateMessage"
+          class="form-control"
+          placeholder="Type private message..."
+          aria-label="Private message input"
+        />
+        <button id="sendPrivateBtn" class="btn btn-secondary">Send Private</button>
       </div>
     </div>
 
@@ -74,6 +99,9 @@
       const messageInput = document.getElementById("message");
       const allMessages = document.getElementById("messages");
 
+      const sendPrivateBtn = document.getElementById("sendPrivateBtn");
+      const privateMessageInput = document.getElementById("privateMessage");
+
       // Display system messages
       const displaySystemMessage = (message) => {
         const p = document.createElement("p");
@@ -85,10 +113,20 @@
 
       // Display user messages
       const displayUserMessage = (data) => {
+        const { username, message, timestamp } = data;
+        const p = document.createElement("p");
+        p.className = "message";
+        p.innerHTML = `<span class="username">${username}</span> <span class="text-muted">(${timestamp})</span>: ${message}`;
+        allMessages.appendChild(p);
+        allMessages.scrollTop = allMessages.scrollHeight;
+      };
+
+      // Display private message
+      const displayPrivateMessage = (data) => {
         const { username, message } = data;
         const p = document.createElement("p");
         p.className = "message";
-        p.innerHTML = `<span class="username">${username}:</span> ${message}`;
+        p.innerHTML = `<span class="username">${username}</span> (Private): ${message}`;
         allMessages.appendChild(p);
         allMessages.scrollTop = allMessages.scrollHeight;
       };
@@ -96,6 +134,11 @@
       // Listen for messages
       socket.on("message", (data) => {
         displayUserMessage(data);
+      });
+
+      // Listen for private messages
+      socket.on("private-message", (data) => {
+        displayPrivateMessage(data);
       });
 
       // Listen for user joining
@@ -108,6 +151,27 @@
         displaySystemMessage(message);
       });
 
+      // Listen for typing indicator
+      socket.on("user-typing", (username) => {
+        document.getElementById("typingMessage").innerText = `${username} is typing...`;
+      });
+
+      // Listen for stop typing indicator
+      socket.on("user-stopped-typing", () => {
+        document.getElementById("typingMessage").innerText = "";
+      });
+
+      // Listen for user list update
+      socket.on("update-users", (users) => {
+        const userList = document.getElementById("userList");
+        userList.innerHTML = '';
+        users.forEach((user) => {
+          const li = document.createElement("li");
+          li.innerText = user;
+          userList.appendChild(li);
+        });
+      });
+
       // Send message
       sendBtn.addEventListener("click", () => {
         const message = messageInput.value.trim();
@@ -117,10 +181,29 @@
         }
       });
 
+      // Send private message
+      sendPrivateBtn.addEventListener("click", () => {
+        const message = privateMessageInput.value.trim();
+        if (message) {
+          const targetSocketId = prompt("Enter the target user's socket ID:");
+          socket.emit("private-message", { targetSocketId, message });
+          privateMessageInput.value = ""; // Clear the input field
+        }
+      });
+
       // Send message on pressing Enter key
       messageInput.addEventListener("keypress", (event) => {
         if (event.key === "Enter") {
           sendBtn.click();
+        }
+      });
+
+      // Typing indicator
+      messageInput.addEventListener("input", () => {
+        if (messageInput.value) {
+          socket.emit("typing");
+        } else {
+          socket.emit("stop-typing");
         }
       });
     </script>

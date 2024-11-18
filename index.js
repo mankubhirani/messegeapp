@@ -7,17 +7,39 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Socket.io
+// Store active users
+let activeUsers = {};
+
 io.on("connection", (socket) => {
+  console.log("A user connected");
+
+  // Handle new user joining
+  socket.on("new-user", (username) => {
+    activeUsers[socket.id] = username;
+    io.emit("user-joined", `${username} has joined the chat`);
+  });
+
+  // Handle user messages
   socket.on("user-message", (message) => {
-    io.emit("message", message);
+    const username = activeUsers[socket.id] || "Anonymous";
+    io.emit("message", { username, message });
+  });
+
+  // Handle user disconnecting
+  socket.on("disconnect", () => {
+    const username = activeUsers[socket.id];
+    if (username) {
+      io.emit("user-left", `${username} has left the chat`);
+      delete activeUsers[socket.id];
+    }
   });
 });
 
+// Serve static files
 app.use(express.static(path.resolve("./public")));
 
 app.get("/", (req, res) => {
-  return res.sendFile("/public/index.html");
+  res.sendFile(path.resolve("./public/index.html"));
 });
 
-server.listen(9000, () => console.log(`Server Started at PORT:9000`));
+server.listen(9000, () => console.log(`Server started at PORT: 9000`));
